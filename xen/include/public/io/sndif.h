@@ -56,54 +56,128 @@
  *                            Backend XenBus Nodes
  *****************************************************************************
  *
- *------------------------- Backend Device parameters -------------------------
+ *-------------------------------- Addressing ---------------------------------
  *
- * devid
- *      Values:         <uint32_t>
+ * Indices used to address frontends, driver instances, cards,
+ * devices and streams.
  *
- *      Index of the soundcard which will be created in the frontend. This
- *      index is zero based.
+ * frontend-id
+ *      Values:         <uint>
  *
- * devcnt
- *      Values:         <uint32_t>
+ *      Domain ID of the sound frontend.
  *
- *      PCM instances count that are created by the soundcard in the frontend.
+ * drv_idx
+ *      Values:         <uint>
  *
- *----------------------------- Streams settings ------------------------------
+ *      Zero based index of the virtualized sound driver instance in this domain.
+ *      Multiple PV drivers are allowed in the domain at the same time.
  *
- * Every virtualized device has own set of the sound streams. Each stream
- * parameter is with index "%u" and defined as 'stream%u_???'. Stream index is
- * zero based and should be continuous in range from 0 to 'streams_cnt' - 1.
+ * card_idx
+ *      Values:         <uint>
  *
- * stream%u_channels
- *      Values:         <uint32_t>
+ *      Zero based index of the card within the driver.
  *
- *      The maximum amount of channels that can be supported by this stream.
- *      Should be from 1 to XENSND_MAX_CHANNELS_PER_STREAM.
+ * dev_id
+ *      Values:         <uint>
  *
- * stream%u_type
- *      Values:         "p", "c", "b"
+ *      Unique (within given card instance) device ID.
+ *      Doesn't have to be zero based and/or be contiguous.
  *
- *      Stream type: "p" - playback stream, "c" - capture stream,
- *      "b" - both playback and capture stream.
+ * stream_idx
+ *      Values:         <uint>
  *
- * stream%u_bedev_p
- *      Values:         string
+ *      Zero based index of the stream of the device.
  *
- *      Name of the playback sound device which is mapped to this stream
- *      by the backend. Present if stream%u_type is "p" or "b"
+ * Example for the frontend running in domain 5, instance of the driver
+ * in the front is 0 (single or first PV driver), sound card 0, device id 2,
+ * first stream (0):
+ * /local/domain/<frontend-id>/device/vsnd/<drv_idx>/card/<card_idx>/
+ * 	device/<dev_id>/stream/<stream_idx>/type = "p"
+ * /local/domain/5/device/vsnd/0/card/0/device/2/stream/0/type = "p"
  *
- * stream%u_bedev_c
- *      Values:         string
+ *------------------------------- PCM settings --------------------------------
  *
- *      Name of the cappture sound device which is mapped to this stream
- *      by the backend. Present if stream%u_type is "c" or "b"
+ * Every virtualized sound frontend has set of cards, devices and streams, each
+ * is individually configured. Part of the PCM configuration can be defined at
+ * higher level and be fully or partially re-used by the underlying layers.
+ * These configuration values are:
+ *  o number of channels (min/max)
+ *  o supported sample rates
+ *  o supported sample formats.
+ * E.g. one can define these values for the whole card, whole device or stream.
+ * Every underlying layer in turn can re-define some or all of them to better
+ * fit its needs. For example, card may define number of channels to be
+ * in [1; 8] range, and some particular stream may be limited to [1; 2] only.
+ * The rule is that the underlying layer must be a subset of the upper layer
+ * range.
  *
- * stream%u_devid
- *      Values:         <uint32_t>
+ * channels-min
+ *      Values:         <int>
  *
- *      Index of the PCM instance which is created by the soundcard
- *      in the frontend.
+ *      The minimum amount of channels that is supported.
+ *      Must be at least 1. If not defined then use frontend's default.
+ *
+ * channels-max
+ *      Values:         <int>
+ *
+ *      The maximum amount of channels that is supported.
+ *      Must be at least <channels-min>. If not defined then use frontend's
+ *      default.
+ *
+ * sample-rates
+ *      Values:         <list of uints>
+ *
+ *      List of supported sample rates separated by XENSND_LIST_SEPARATOR.
+ *      If not defined then use frontend's default.
+ *
+ * sample-formats
+ *      Values:         <list of XENSND_PCM_FORMAT_XXX_STR>
+ *
+ *      List of supported sample formats separated by XENSND_LIST_SEPARATOR.
+ *      If not defined then use frontend's default.
+ *
+ * Example configuration:
+ *
+ * Card configuration used by all streams:
+ * /local/domain/5/device/vsnd/0/card/0/sample-formats = "s8;u8;s16_le;s16_be"
+ * Stream overrides sample rates supported:
+ * /local/domain/5/device/vsnd/0/card/1/device/2/stream/0/sample-rates = "8000;22050;44100;48000"
+ *
+ *------------------------------ Card settings --------------------------------
+ * short-name
+ *      Values:         <char[32]>
+ *
+ *      Short name of the card.
+ *
+ * long-name
+ *      Values:         <char[80]>
+ *
+ *      Long name of the card.
+ *
+ * For example,
+ * /local/domain/5/device/vsnd/0/card/0/short-name = "Virtual audio"
+ * /local/domain/5/device/vsnd/0/card/0/long-name = "Virtual audio at center stack"
+ *
+ *----------------------------- Device settings --------------------------------
+ * name
+ *      Values:         <char[80]>
+ *
+ *      Name of the sound device of the card given.
+ *
+ * For example,
+ * /local/domain/5/device/vsnd/0/card/0/device/0/name = "General analog"
+ *
+ *----------------------------- Stream settings -------------------------------
+ *
+ * type
+ *      Values:         "p", "c"
+ *
+ *      Stream type: "p" - playback stream, "c" - capture stream
+ *
+ *      If both capture and playback are needed then two streams need to be
+ *      defined under the same device. For example,
+ *      /local/domain/5/device/vsnd/0/card/0/device/0/stream/0/type = "p"
+ *      /local/domain/5/device/vsnd/0/card/0/device/0/stream/1/type = "c"
  *
  *****************************************************************************
  *                            Frontend XenBus Nodes
@@ -111,17 +185,26 @@
  *
  *----------------------- Request Transport Parameters -----------------------
  *
+ * These are per stream.
+ *
  * event-channel
- *      Values:         <uint32_t>
+ *      Values:         <int>
  *
  *      The identifier of the Xen event channel used to signal activity
  *      in the ring buffer.
  *
  * ring-ref
- *      Values:         <uint32_t>
+ *      Values:         <int>
  *
  *      The Xen grant reference granting permission for the backend to map
- *      the sole page in a single page sized ring buffer.
+ *      a sole page in a single page sized ring buffer.
+ *
+ * index
+ *      Values:         <int>
+ *
+ *      After stream initialization it is assigned a unique ID (within the front
+ *      driver), so every stream of the frontend can be identified by the
+ *      backend by this ID.
  */
 
 /*
@@ -131,25 +214,25 @@
  *                                   Startup                                 *
  *****************************************************************************
  *
- * Tool stack creates front and back nodes with state XenbusStateInitialising.
+ * Tool stack creates front and back state nodes with initial state
+ * XenbusStateInitialising.
+ * Tool stack creates and sets up frontend sound configuration nodes per domain.
  *
  * Front                                Back
  * =================================    =====================================
  * XenbusStateInitialising              XenbusStateInitialising
- *  o Query virtual device               o Query backend device identification
- *    properties.                          data.
- *  o Setup OS device instance.          o Open and validate backend device.
- *                                       o Publish backend features and
- *                                         transport parameters.
+ *                                       o Query backend device identification
+ *                                         data.
+ *                                       o Open and validate backend device.
  *                                                      |
  *                                                      |
  *                                                      V
  *                                      XenbusStateInitWait
  *
- * o Query backend features and
- *   transport parameters.
- * o Allocate and initialize the
- *   request ring.
+ * o Query frontend configuration
+ * o Allocate and initialize
+ *   event channels per configured
+ *   playback/capture stream.
  * o Publish transport parameters
  *   that will be in effect during
  *   this connection.
@@ -159,42 +242,20 @@
  * XenbusStateInitialised
  *
  *                                       o Query frontend transport parameters.
- *                                       o Connect to the request ring and
- *                                         event channel.
- *                                       o Publish backend device properties.
+ *                                       o Connect to the event channels.
  *                                                      |
  *                                                      |
  *                                                      V
  *                                      XenbusStateConnected
  *
- *  o Query backend device properties.
- *  o Finalize OS virtual device
- *    instance.
+ *  o Create and initialize OS
+ *  virtual sound device instances
+ *  as per configuration.
  *              |
  *              |
  *              V
  * XenbusStateConnected
  *
- * Note: Drivers that do not support any optional features, or the negotiation
- *       of transport parameters, can skip certain states in the state machine:
- *
- *       o A frontend may transition to XenbusStateInitialised without
- *         waiting for the backend to enter XenbusStateInitWait.  In this
- *         case, default transport parameters are in effect and any
- *         transport parameters published by the frontend must contain
- *         their default values.
- *
- *       o A backend may transition to XenbusStateInitialised, bypassing
- *         XenbusStateInitWait, without waiting for the frontend to first
- *         enter the XenbusStateInitialised state.  In this case, default
- *         transport parameters are in effect and any transport parameters
- *         published by the backend must contain their default values.
- *
- *       Drivers that support optional features and/or transport parameter
- *       negotiation must tolerate these additional state transition paths.
- *       In general this means performing the work of any skipped state
- *       transition, if it has not already been performed, in addition to the
- *       work associated with entry into the current state.
  */
 
 /*
@@ -246,15 +307,75 @@
 #define XENSND_OP_WRITE                 3
 #define XENSND_OP_SET_VOLUME            4
 #define XENSND_OP_GET_VOLUME            5
+#define XENSND_OP_MUTE                  6
+#define XENSND_OP_UNMUTE                7
 
 /*
  * The maximum amount of shared pages which can be used in any request
  * from the frontend driver to the backend driver
+ * Pages must be of XC_PAGE_SIZE length.
  */
 #define XENSND_MAX_PAGES_PER_REQUEST    10
 
 /* The maximum amount of channels per virtualized stream */
 #define XENSND_MAX_CHANNELS_PER_STREAM  128
+
+/*
+ * XENSTORE FIELD AND PATH NAME STRINGS, HELPERS.
+ */
+#define XENSND_DRIVER_NAME                   "vsnd"
+
+#define XENSND_LIST_SEPARATOR                ";"
+/* Path entries */
+#define XENSND_PATH_CARD                     "card"
+#define XENSND_PATH_DEVICE                   "device"
+#define XENSND_PATH_STREAM                   "stream"
+/* Field names */
+#define XENSND_FIELD_CARD_SHORT_NAME         "short-name"
+#define XENSND_FIELD_CARD_LONG_NAME          "long-name"
+#define XENSND_FIELD_RING_REF                "ring-ref"
+#define XENSND_FIELD_EVT_CHNL                "event-channel"
+#define XENSND_FIELD_DEVICE_NAME             "name"
+#define XENSND_FIELD_TYPE                    "type"
+#define XENSND_FIELD_STREAM_INDEX            "index"
+#define XENSND_FIELD_CHANNELS_MIN            "channels-min"
+#define XENSND_FIELD_CHANNELS_MAX            "channels-max"
+#define XENSND_FIELD_SAMPLE_RATES            "sample-rates"
+#define XENSND_FIELD_SAMPLE_FORMATS          "sample-formats"
+/* Stream type field values. */
+#define XENSND_STREAM_TYPE_PLAYBACK          "p"
+#define XENSND_STREAM_TYPE_CAPTURE           "c"
+/* Sample rate max string length */
+#define XENSND_SAMPLE_RATE_MAX_LEN            6
+/* Sample format field values */
+#define XENSND_SAMPLE_FORMAT_MAX_LEN         24
+
+#define XENSND_PCM_FORMAT_S8_STR                 "s8"
+#define XENSND_PCM_FORMAT_U8_STR                 "u8"
+#define XENSND_PCM_FORMAT_S16_LE_STR             "s16_le"
+#define XENSND_PCM_FORMAT_S16_BE_STR             "s16_be"
+#define XENSND_PCM_FORMAT_U16_LE_STR             "u16_le"
+#define XENSND_PCM_FORMAT_U16_BE_STR             "u16_be"
+#define XENSND_PCM_FORMAT_S24_LE_STR             "s24_le"
+#define XENSND_PCM_FORMAT_S24_BE_STR             "s24_be"
+#define XENSND_PCM_FORMAT_U24_LE_STR             "u24_le"
+#define XENSND_PCM_FORMAT_U24_BE_STR             "u24_be"
+#define XENSND_PCM_FORMAT_S32_LE_STR             "s32_le"
+#define XENSND_PCM_FORMAT_S32_BE_STR             "s32_be"
+#define XENSND_PCM_FORMAT_U32_LE_STR             "u32_le"
+#define XENSND_PCM_FORMAT_U32_BE_STR             "u32_be"
+#define XENSND_PCM_FORMAT_F32_LE_STR             "float_le"
+#define XENSND_PCM_FORMAT_F32_BE_STR             "float_be"
+#define XENSND_PCM_FORMAT_F64_LE_STR             "float64_le"
+#define XENSND_PCM_FORMAT_F64_BE_STR             "float64_be"
+#define XENSND_PCM_FORMAT_IEC958_SUBFRAME_LE_STR "iec958_subframe_le"
+#define XENSND_PCM_FORMAT_IEC958_SUBFRAME_BE_STR "iec958_subframe_be"
+#define XENSND_PCM_FORMAT_MU_LAW_STR             "mu_law"
+#define XENSND_PCM_FORMAT_A_LAW_STR              "a_law"
+#define XENSND_PCM_FORMAT_IMA_ADPCM_STR          "ima_adpcm"
+#define XENSND_PCM_FORMAT_MPEG_STR               "mpeg"
+#define XENSND_PCM_FORMAT_GSM_STR                "gsm"
+#define XENSND_PCM_FORMAT_SPECIAL_STR            "special"
 
 /*
  * STATUS RETURN CODES.
@@ -268,7 +389,7 @@
  * Description of the protocol between frontend and backend driver.
  *
  * The two halves of a Para-virtual sound driver communicates with
- * each to other using an shared page and event channel.
+ * each other using a shared page and an event channel.
  * Shared page contains a ring with request/response packets.
  * All fields within the packet are always in little-endian byte order.
  * Almost all fields within the packet are unsigned except
@@ -277,143 +398,157 @@
  *
  * All request packets have the same length (64 bytes)
  *
- * Request open - open an pcm stream for playback or capture:
- *     0    1     2     3     4     5     6     7  octet
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |                      id                       |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       operation       |      stream_idx       |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |      pcm_format       |      pcm_channels     |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       pcm_rate        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       reserved        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/+
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       reserved        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
  *
+ * Request open - open a PCM stream for playback or capture:
+ *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                 id                |    operation    |     stream_idx  |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |  pcm_format     |  pcm_channels   |             reserved              |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                               pcm_rate                                |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                                gref[0]                                |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                                gref[1]                                |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                                gref[9]                                |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
+
  * id - private guest value, echoed in resp
  * operation - XENSND_OP_OPEN
- * stream_idx - index of the stream (from 0 to 'streams_cnt' - 1.
- *   'streams_cnt' is read from the XenStore)
- * pcm_format - XENSND_PCM_FORMAT_???
- * pcm_channels - channels count in stream
- * pcm_rate - stream data rate
+ * stream_idx - index of the stream ("streams_idx" XenStore entry
+ *   of the stream)
+ * pcm_format - XENSND_PCM_FORMAT_XXX value
+ * pcm_channels - number of channels of this stream
+ * pcm_rate - stream data rate, Hz
+ * gref[0; 9] - references to the grant entries of the pages used in read/write
+ * requests.
  *
  *
  * Request close - close an opened pcm stream:
- *     0    1     2     3     4     5     6     7  octet
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |                      id                       |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       operation       |       stream_idx      |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       reserved        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/+
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       reserved        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
+ *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                 id                |    operation    |     stream_idx  |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
  *
  * id - private guest value, echoed in resp
  * operation - XENSND_OP_CLOSE
- * stream_idx - index of the stream (from 0 to 'streams_cnt' - 1.
- *   'streams_cnt' is read from the XenStore)
+ * stream_idx - index of the stream ("streams_idx" XenStore entry
+ *   of the stream)
  *
  *
  * Request read/write - used for read (for capture) or write (for playback):
- *     0    1     2     3     4     5     6     7  octet
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |                      id                       |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       operation       |       stream_idx      |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |         length        |         gref0         |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |         gref1         |         gref2         |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/+
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |          gref9        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
+ *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                 id                |    operation    |     stream_idx  |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |               offset              |               length              |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
  *
  * id - private guest value, echoed in resp
- * operation - XENSND_OP_READ or XENSND_OP_WRITE
- * stream_idx - index of the stream (from 0 to 'streams_cnt' - 1.
- *   'streams_cnt' is read from the XenStore)
+ * operation - XENSND_OP_READ/XENSND_OP_WRITE
+ * stream_idx - index of the stream ("streams_idx" XenStore entry
+ *   of the stream)
+ * offset - read or write data offset (gref[0] page being 0)
  * length - read or write data length
- * gref0 - gref9 - references to a grant entries for used pages in read/write
- * request.
  *
  *
- * Request set volume - set/get channels volume in stream:
- *     0    1     2     3     4     5     6     7  octet
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |                      id                       |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       operation       |       stream_idx      |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |         gref          |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       reserved        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/+
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       reserved        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
+ * Request set/get volume - set/get channels' volume of the stream given:
+ *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                 id                |    operation    |     stream_idx  |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
  *
  * id - private guest value, echoed in resp
  * operation - XENSND_OP_SET_VOLUME or XENSND_OP_GET_VOLUME
- * stream_idx - index of the stream (from 0 to 'streams_cnt' - 1.
- *   'streams_cnt' is read from the XenStore)
- * gref - references to a grant entry for page with the volume values
+ * stream_idx - index of the stream ("streams_idx" XenStore entry
+ *   of the stream)
+ * gref[0] is used to exchange volume values from the open request.
  *
- *
- * Shared page for set/get volume:
- *
- *     0    1     2     3     4     5     6     7  octet
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |        vol_ch0        |        vol_ch1        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |        vol_ch2        |        vol_ch3        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/+
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       vol_ch126       |       vol_ch127       |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
+ * Shared page for set/get volume data:
+ *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                                vol_ch0                                |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                                vol_ch1                                |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                                vol_ch127                              |
+ * +-----------------+-----------------+-----------------+-----------------+
  *
  * vol_ch0 - vol_ch127 - volume for the channel from 0 to
  *   XENSND_MAX_CHANNELS_PER_STREAM
- * Please, note that only first 'stream%u_channels' are used in this command,
- *   where 'stream%u_channels' is read from the XenStore (channels count for
- *   stream with index '%u' which equals to 'stream_idx')
+ * Volume is expressed as a signed value in steps of 0.001 dBm,
+ * while 0 is being 0dBm.
+ *
+ *
+ * Request mute/unmute - mute/unmute stream:
+ *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                 id                |    operation    |     stream_idx  |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |      all        |            reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
+ *
+ * id - private guest value, echoed in resp
+ * operation - XENSND_OP_MUTE/XENSND_OP_UNMUTE
+ * stream_idx - index of the stream ("streams_idx" XenStore entry
+ *   of the stream)
+ * all - if not 0, then ignore stream_idx and mute/unmute all
  *
  *
  * All response packets have the same length (64 bytes)
  *
  * Response for all requests:
- *     0    1     2     3     4     5     6     7  octet
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |                      id                       |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       operation       |         status        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       stream_idx      |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       reserved        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/+
- * +-----+-----+-----+-----+-----+-----+-----+-----+
- * |       reserved        |       reserved        |
- * +-----+-----+-----+-----+-----+-----+-----+-----+
+ *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                 id                |    operation    |     stream_idx  |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |      status     |                      reserved                       |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                              reserved                                 |
+ * +-----------------+-----------------+-----------------+-----------------+
  *
  * id - copied from request
  * stream_idx - copied from request
- * operation - XENSND_OP_??? - copied from request
- * status - XENSND_RSP_???
+ * operation - XENSND_OP_XXX - copied from request
+ * status - signed XENSND_RSP_XXX
  */
 
 struct xensnd_request {
@@ -423,7 +558,5 @@ struct xensnd_request {
 struct xensnd_response {
     uint8_t raw[64];
 };
-
-DEFINE_RING_TYPES(xensnd, struct xensnd_request, struct xensnd_response);
 
 #endif /* __XEN_PUBLIC_IO_XENSND_H__ */
