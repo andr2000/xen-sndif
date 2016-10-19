@@ -40,6 +40,47 @@
  */
 
 /*
+ * /local/domain/1/device/vsnd/0/card/0/
+ * /local/domain/1/device/vsnd/0/card/0/ring-ref = "<ring-ref-card-0>"
+ * /local/domain/1/device/vsnd/0/card/0/event-channel = "<evtchn-card-0>"
+ * /local/domain/1/device/vsnd/0/card/0/short-name = "Card 0 short name"
+ * /local/domain/1/device/vsnd/0/card/0/long-name = "This is the long name for Card 0"
+ *
+ *
+ * /local/domain/1/device/vsnd/0/card/0/device/0/name = "General Analog"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/channels-min = "1"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/channels-max = "2"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/sample-rates = "8000;22050;32000;44100;48000"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/sample-formats = "u8;s8;s32le"
+ *
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/type = "b"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/index = "0"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/channels-min = "1"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/channels-max = "2"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/sample-rates = "44100;48000"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/sample-formats = "s32le"
+ *
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/1/type = "c"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/1/index = "1"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/1/sample-rates = "8000;22050"
+ *
+ *
+ * /local/domain/1/device/vsnd/0/card/0/device/2/name = "HDMI-OUT"
+ *
+ * /local/domain/1/device/vsnd/0/card/0/device/2/stream/0/type = "p"
+ * /local/domain/1/device/vsnd/0/card/0/device/2/stream/0/index = "2"
+ *
+ * /local/domain/1/device/vsnd/0/card/0/device/2/stream/0/type = "p"
+ * /local/domain/1/device/vsnd/0/card/0/device/2/stream/0/index = "3"
+ *
+ * /local/domain/1/device/vsnd/0/card/1/
+ * /local/domain/1/device/vsnd/0/card/1/channels-min = "1"
+ * /local/domain/1/device/vsnd/0/card/1/channels-max = "5"
+ * /local/domain/1/device/vsnd/0/card/1/sample-rates = "8000;22050;32000;44100;48000"
+ * /local/domain/1/device/vsnd/0/card/1/sample-formats = "u8;s8;s32le"
+ */
+
+/*
  * Feature and Parameter Negotiation
  * =================================
  * The two halves of a Para-virtual sound card driver utilize nodes within the
@@ -255,6 +296,85 @@
 
 /* The maximum amount of channels per virtualized stream */
 #define XENSND_MAX_CHANNELS_PER_STREAM  128
+
+/*
+ * XENSTORE FIELD AND PATH NAME STRINGS, HELPERS.
+ */
+#define XENSND_DRIVER_NAME                   "vsnd"
+
+#define XENSND_LIST_SEPARATOR                ";"
+/* Path entries */
+#define XENSND_PATH_CARD                     "card"
+#define XENSND_PATH_DEVICE                   "device"
+#define XENSND_PATH_STREAM                   "stream"
+/* Field names */
+#define XENSND_FIELD_CARD_SHORT_NAME         "short-name"
+#define XENSND_FIELD_CARD_LONG_NAME          "long-name"
+#define XENSND_FIELD_RING_REF                "ring-ref"
+#define XENSND_FIELD_EVT_CHNL                "event-channel"
+#define XENSND_FIELD_DEVICE_NAME             "name"
+#define XENSND_FIELD_TYPE                    "type"
+#define XENSND_FIELD_STREAM_INDEX            "index"
+#define XENSND_FIELD_CHANNELS_MIN            "channels-min"
+#define XENSND_FIELD_CHANNELS_MAX            "channels-max"
+#define XENSND_FIELD_SAMPLE_RATES            "sample-rates"
+#define XENSND_FIELD_SAMPLE_FORMATS          "sample-formats"
+/* Stream type field values. */
+#define XENSND_STREAM_TYPE_PLAYBACK          "p"
+#define XENSND_STREAM_TYPE_CAPTURE           "c"
+#define XENSND_STREAM_TYPE_BOTH              "b"
+/* Sample rate max string length */
+#define XENSND_SAMPLE_RATE_MAX_LEN            6
+/* Sample format field values */
+#define XENSND_SAMPLE_FORMAT_MAX_LEN         24
+
+#define XENSND_SAMPLE_FMT_S8                 "s8"
+#define XENSND_SAMPLE_FMT_U8                 "u8"
+#define XENSND_SAMPLE_FMT_S16_LE             "s16_le"
+#define XENSND_SAMPLE_FMT_S16_BE             "s16_be"
+#define XENSND_SAMPLE_FMT_U16_LE             "u16_le"
+#define XENSND_SAMPLE_FMT_U16_BE             "u16_be"
+#define XENSND_SAMPLE_FMT_S24_LE             "s24_le"
+#define XENSND_SAMPLE_FMT_S24_BE             "s24_be"
+#define XENSND_SAMPLE_FMT_U24_LE             "u24_le"
+#define XENSND_SAMPLE_FMT_U24_BE             "u24_be"
+#define XENSND_SAMPLE_FMT_S32_LE             "s32_le"
+#define XENSND_SAMPLE_FMT_S32_BE             "s32_be"
+#define XENSND_SAMPLE_FMT_U32_LE             "u32_le"
+#define XENSND_SAMPLE_FMT_U32_BE             "u32_be"
+#define XENSND_SAMPLE_FMT_FLOAT_LE           "float_le"
+#define XENSND_SAMPLE_FMT_FLOAT_BE           "float_be"
+#define XENSND_SAMPLE_FMT_FLOAT64_LE         "float64_le"
+#define XENSND_SAMPLE_FMT_FLOAT64_BE         "float64_be"
+#define XENSND_SAMPLE_FMT_IEC958_SUBFRAME_LE "iec958_subframe_le"
+#define XENSND_SAMPLE_FMT_IEC958_SUBFRAME_BE "iec958_subframe_be"
+#define XENSND_SAMPLE_FMT_MU_LAW             "mu_law"
+#define XENSND_SAMPLE_FMT_A_LAW              "a_law"
+#define XENSND_SAMPLE_FMT_IMA_ADPCM          "ima_adpcm"
+#define XENSND_SAMPLE_FMT_MPEG               "mpeg"
+#define XENSND_SAMPLE_FMT_GSM                "gsm"
+#define XENSND_SAMPLE_FMT_SPECIAL            "special"
+#define XENSND_SAMPLE_FMT_S24_3LE            "s24_3le"
+#define XENSND_SAMPLE_FMT_U24_3LE            "u24_3le"
+#define XENSND_SAMPLE_FMT_S24_3BE            "s24_3be"
+#define XENSND_SAMPLE_FMT_U24_3BE            "u24_3be"
+#define XENSND_SAMPLE_FMT_S20_3LE            "s20_3le"
+#define XENSND_SAMPLE_FMT_U20_3LE            "u20_3le"
+#define XENSND_SAMPLE_FMT_S20_3BE            "s20_3be"
+#define XENSND_SAMPLE_FMT_U20_3BE            "u20_3be"
+#define XENSND_SAMPLE_FMT_S18_3LE            "s18_3le"
+#define XENSND_SAMPLE_FMT_U18_3LE            "u18_3le"
+#define XENSND_SAMPLE_FMT_S18_3BE            "s18_3be"
+#define XENSND_SAMPLE_FMT_U18_3BE            "u18_3be"
+#define XENSND_SAMPLE_FMT_G723_24            "g723_24"
+#define XENSND_SAMPLE_FMT_G723_24_1B         "g723_24_1b"
+#define XENSND_SAMPLE_FMT_G723_40            "g723_40"
+#define XENSND_SAMPLE_FMT_G723_40_1B         "g723_40_1b"
+#define XENSND_SAMPLE_FMT_DSD_U8             "dsd_u8"
+#define XENSND_SAMPLE_FMT_DSD_U16_LE         "dsd_u16_le"
+#define XENSND_SAMPLE_FMT_DSD_U32_LE         "dsd_u32_le"
+#define XENSND_SAMPLE_FMT_DSD_U16_BE         "dsd_u16_be"
+#define XENSND_SAMPLE_FMT_DSD_U32_BE         "dsd_u32_be"
 
 /*
  * STATUS RETURN CODES.
