@@ -53,7 +53,7 @@
  * /local/domain/1/device/vsnd/0/card/0/device/0/sample-rates = "8000;22050;32000;44100;48000"
  * /local/domain/1/device/vsnd/0/card/0/device/0/sample-formats = "u8;s8;s32le"
  *
- * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/type = "b"
+ * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/type = "p"
  * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/index = "0"
  * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/channels-min = "1"
  * /local/domain/1/device/vsnd/0/card/0/device/0/stream/0/channels-max = "2"
@@ -322,7 +322,6 @@
 /* Stream type field values. */
 #define XENSND_STREAM_TYPE_PLAYBACK          "p"
 #define XENSND_STREAM_TYPE_CAPTURE           "c"
-#define XENSND_STREAM_TYPE_BOTH              "b"
 /* Sample rate max string length */
 #define XENSND_SAMPLE_RATE_MAX_LEN            6
 /* Sample format field values */
