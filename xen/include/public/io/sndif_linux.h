@@ -21,9 +21,13 @@
 #ifndef __XEN_PUBLIC_IO_XENSND_LINUX_H__
 #define __XEN_PUBLIC_IO_XENSND_LINUX_H__
 
+#ifdef __KERNEL__
 #include <xen/interface/io/ring.h>
 #include <xen/interface/grant_table.h>
-#include <xen/interface/grant_table.h>
+#else
+#include <xen/io/ring.h>
+#include <xen/grant_table.h>
+#endif
 #if 0
 #include <xen/include/public/io/sndif.h>
 #else
