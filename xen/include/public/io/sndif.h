@@ -327,6 +327,7 @@
 /* Sample format field values */
 #define XENSND_SAMPLE_FORMAT_MAX_LEN         24
 
+/* TODO: support only strings for the defined XENSND_PCM_FORMAT */
 #define XENSND_SAMPLE_FMT_S8                 "s8"
 #define XENSND_SAMPLE_FMT_U8                 "u8"
 #define XENSND_SAMPLE_FMT_S16_LE             "s16_le"

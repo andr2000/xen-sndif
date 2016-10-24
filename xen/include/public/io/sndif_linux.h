@@ -36,9 +36,10 @@
 #endif
 
 struct xensnd_open_req {
-	uint8_t pcm_format;
-	uint8_t pcm_channels;
-	uint8_t pcm_rate;
+	uint8_t format;
+	uint8_t channels;
+	/* in Hz */
+	uint32_t rate;
 } __attribute__((packed));
 
 struct xensnd_req {
