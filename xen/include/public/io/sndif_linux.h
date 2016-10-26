@@ -42,6 +42,11 @@ struct xensnd_open_req {
 	uint32_t rate;
 } __attribute__((packed));
 
+struct xensnd_write_req {
+	uint16_t len;
+	grant_ref_t grefs[XENSND_MAX_PAGES_PER_REQUEST];
+} __attribute__((packed));
+
 struct xensnd_req {
 	union {
 		struct xensnd_request raw;
@@ -51,6 +56,7 @@ struct xensnd_req {
 			uint8_t stream_idx;
 			union {
 				struct xensnd_open_req open;
+				struct xensnd_write_req write;
 			} op;
 		} data;
 	} u;
