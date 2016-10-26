@@ -40,11 +40,11 @@ struct xensnd_open_req {
 	uint8_t channels;
 	/* in Hz */
 	uint32_t rate;
+	grant_ref_t grefs[XENSND_MAX_PAGES_PER_REQUEST];
 } __attribute__((packed));
 
 struct xensnd_write_req {
 	uint16_t len;
-	grant_ref_t grefs[XENSND_MAX_PAGES_PER_REQUEST];
 } __attribute__((packed));
 
 struct xensnd_req {
