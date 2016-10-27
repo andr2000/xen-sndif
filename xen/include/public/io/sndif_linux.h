@@ -47,6 +47,10 @@ struct xensnd_write_req {
 	uint16_t len;
 } __attribute__((packed));
 
+struct xensnd_read_req {
+	uint16_t len;
+} __attribute__((packed));
+
 struct xensnd_req {
 	union {
 		struct xensnd_request raw;
@@ -57,6 +61,7 @@ struct xensnd_req {
 			union {
 				struct xensnd_open_req open;
 				struct xensnd_write_req write;
+				struct xensnd_read_req read;
 			} op;
 		} data;
 	} u;
