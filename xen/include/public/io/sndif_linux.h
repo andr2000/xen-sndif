@@ -69,7 +69,7 @@ struct xensnd_resp {
 			uint8_t id;
 			uint8_t operation;
 			uint8_t stream_idx;
-			uint8_t status;
+			int8_t status;
 		} data;
 	} u;
 };
