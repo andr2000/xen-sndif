@@ -522,6 +522,4 @@ struct xensnd_response {
     uint8_t raw[64];
 };
 
-DEFINE_RING_TYPES(xensnd, struct xensnd_request, struct xensnd_response);
-
 #endif /* __XEN_PUBLIC_IO_XENSND_H__ */

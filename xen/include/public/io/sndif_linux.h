@@ -79,7 +79,7 @@ struct xensnd_resp {
 	} u;
 };
 
-DEFINE_RING_TYPES(xen_sndif, struct xensnd_request,
-		struct xensnd_response);
+DEFINE_RING_TYPES(xen_sndif, struct xensnd_req,
+		struct xensnd_resp);
 
 #endif /* __XEN_PUBLIC_IO_XENSND_LINUX_H__ */
