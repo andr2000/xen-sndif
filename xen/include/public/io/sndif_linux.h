@@ -38,30 +38,59 @@
 struct xensnd_open_req {
 	uint8_t format;
 	uint8_t channels;
+	uint16_t __reserved0;
 	/* in Hz */
 	uint32_t rate;
 	grant_ref_t grefs[XENSND_MAX_PAGES_PER_REQUEST];
 } __attribute__((packed));
 
+struct xensnd_close_req {
+} __attribute__((packed));
+
 struct xensnd_write_req {
+	uint16_t offset;
 	uint16_t len;
 } __attribute__((packed));
 
 struct xensnd_read_req {
+	uint16_t offset;
 	uint16_t len;
+} __attribute__((packed));
+
+struct xensnd_get_vol_req {
+} __attribute__((packed));
+
+struct xensnd_set_vol_req {
+} __attribute__((packed));
+
+struct xensnd_vol_data {
+	int32_t vol_ch[XENSND_MAX_CHANNELS_PER_STREAM];
+} __attribute__((packed));
+
+struct xensnd_mute_req {
+	uint8_t all;
+} __attribute__((packed));
+
+struct xensnd_unmute_req {
+	uint8_t all;
 } __attribute__((packed));
 
 struct xensnd_req {
 	union {
 		struct xensnd_request raw;
 		struct {
-			uint8_t id;
+			uint16_t id;
 			uint8_t operation;
 			uint8_t stream_idx;
 			union {
 				struct xensnd_open_req open;
+				struct xensnd_close_req close;
 				struct xensnd_write_req write;
 				struct xensnd_read_req read;
+				struct xensnd_get_vol_req get_vol;
+				struct xensnd_set_vol_req set_vol;
+				struct xensnd_mute_req mute;
+				struct xensnd_unmute_req unmute;
 			} op;
 		} data;
 	} u;
@@ -71,7 +100,7 @@ struct xensnd_resp {
 	union {
 		struct xensnd_response raw;
 		struct {
-			uint8_t id;
+			uint16_t id;
 			uint8_t operation;
 			uint8_t stream_idx;
 			int8_t status;
