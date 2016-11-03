@@ -36,25 +36,25 @@
 #endif
 
 struct xensnd_open_req {
+	uint32_t rate;
 	uint8_t format;
 	uint8_t channels;
-	uint16_t __reserved0;
 	/* in Hz */
-	uint32_t rate;
-	grant_ref_t grefs[XENSND_MAX_PAGES_PER_REQUEST];
+	uint16_t gref_dir_size;
+	grant_ref_t gref_dir;
 } __attribute__((packed));
 
 struct xensnd_close_req {
 } __attribute__((packed));
 
 struct xensnd_write_req {
-	uint16_t offset;
-	uint16_t len;
+	uint32_t offset;
+	uint32_t len;
 } __attribute__((packed));
 
 struct xensnd_read_req {
-	uint16_t offset;
-	uint16_t len;
+	uint32_t offset;
+	uint32_t len;
 } __attribute__((packed));
 
 struct xensnd_get_vol_req {
@@ -63,16 +63,10 @@ struct xensnd_get_vol_req {
 struct xensnd_set_vol_req {
 } __attribute__((packed));
 
-struct xensnd_vol_data {
-	int32_t vol_ch[XENSND_MAX_CHANNELS_PER_STREAM];
-} __attribute__((packed));
-
 struct xensnd_mute_req {
-	uint8_t all;
 } __attribute__((packed));
 
 struct xensnd_unmute_req {
-	uint8_t all;
 } __attribute__((packed));
 
 struct xensnd_req {

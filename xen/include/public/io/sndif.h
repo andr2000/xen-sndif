@@ -112,13 +112,13 @@
  * range.
  *
  * channels-min
- *      Values:         <int>
+ *      Values:         <string representing a positive integer>
  *
  *      The minimum amount of channels that is supported.
  *      Must be at least 1. If not defined then use frontend's default.
  *
  * channels-max
- *      Values:         <int>
+ *      Values:         <string representing a positive integer>
  *
  *      The maximum amount of channels that is supported.
  *      Must be at least <channels-min>. If not defined then use frontend's
@@ -188,19 +188,19 @@
  * These are per stream.
  *
  * event-channel
- *      Values:         <int>
+ *      Values:         <string representing a positive integer>
  *
  *      The identifier of the Xen event channel used to signal activity
  *      in the ring buffer.
  *
  * ring-ref
- *      Values:         <int>
+ *      Values:         <string representing a positive integer>
  *
  *      The Xen grant reference granting permission for the backend to map
  *      a sole page in a single page sized ring buffer.
  *
  * index
- *      Values:         <int>
+ *      Values:         <string representing a positive integer>
  *
  *      After stream initialization it is assigned a unique ID (within the front
  *      driver), so every stream of the frontend can be identified by the
@@ -311,16 +311,6 @@
 #define XENSND_OP_UNMUTE                7
 
 /*
- * The maximum amount of shared pages which can be used in any request
- * from the frontend driver to the backend driver
- * Pages must be of XC_PAGE_SIZE length.
- */
-#define XENSND_MAX_PAGES_PER_REQUEST    10
-
-/* The maximum amount of channels per virtualized stream */
-#define XENSND_MAX_CHANNELS_PER_STREAM  128
-
-/*
  * XENSTORE FIELD AND PATH NAME STRINGS, HELPERS.
  */
 #define XENSND_DRIVER_NAME                   "vsnd"
@@ -391,12 +381,9 @@
  * The two halves of a Para-virtual sound driver communicates with
  * each other using a shared page and an event channel.
  * Shared page contains a ring with request/response packets.
- * All fields within the packet are always in little-endian byte order.
- * Almost all fields within the packet are unsigned except
- * the field 'status' in the responses packets which is signed.
  *
  *
- * All request packets have the same length (64 bytes)
+ * All request packets have the same length (16 octets)
  *
  *
  * Request open - open a PCM stream for playback or capture:
@@ -404,9 +391,28 @@
  * +-----------------+-----------------+-----------------+-----------------+
  * |                 id                |    operation    |     stream_idx  |
  * +-----------------+-----------------+-----------------+-----------------+
- * |  pcm_format     |  pcm_channels   |             reserved              |
+ * |                                pcm_rate                               |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                               pcm_rate                                |
+ * |  pcm_format     |  pcm_channels   |             gref_dir_size         |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                            gref_directory                             |
+ * +-----------------+-----------------+-----------------+-----------------+
+
+ * id - uint16_t, private guest value, echoed in response
+ * operation - uint8_t, XENSND_OP_OPEN
+ * stream_idx - uint8_t, index of the stream ("streams_idx" XenStore entry
+ *   of the stream)
+ * pcm_rate - uint32_t, stream data rate, Hz
+ * pcm_format - uint8_t, XENSND_PCM_FORMAT_XXX value
+ * pcm_channels - uint8_t, number of channels of this stream
+ * gref_dir_size - uint16_t, number of gref_directory entries passed
+ *   in the shared page referenced by gref_directory
+ * gref_directory - grant_ref_t, a reference to a shared page which holds
+ *   array of grant entries of the pages used in requests which data
+ *   cannot fit in a request/response.
+ *
+ * Shared page for XENSND_OP_OPEN data (gref_directory in the request):
+ *          0                 1                  2                3        octet
  * +-----------------+-----------------+-----------------+-----------------+
  * |                                gref[0]                                |
  * +-----------------+-----------------+-----------------+-----------------+
@@ -414,39 +420,27 @@
  * +-----------------+-----------------+-----------------+-----------------+
  * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
  * +-----------------+-----------------+-----------------+-----------------+
- * |                                gref[9]                                |
+ * |               gref[XC_PAGE_SIZE/sizeof(grant_ref_t) - 1]              |
  * +-----------------+-----------------+-----------------+-----------------+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
- * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
- * +-----------------+-----------------+-----------------+-----------------+
-
- * id - private guest value, echoed in resp
- * operation - XENSND_OP_OPEN
- * stream_idx - index of the stream ("streams_idx" XenStore entry
- *   of the stream)
- * pcm_format - XENSND_PCM_FORMAT_XXX value
- * pcm_channels - number of channels of this stream
- * pcm_rate - stream data rate, Hz
- * gref[0; 9] - references to the grant entries of the pages used in read/write
- * requests.
  *
+ * gref[i] - grant_ref_t, reference to a shared page of the buffer
+ *   allocated at XENSND_OP_OPEN
  *
  * Request close - close an opened pcm stream:
  *          0                 1                  2                3        octet
  * +-----------------+-----------------+-----------------+-----------------+
  * |                 id                |    operation    |     stream_idx  |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
+ * |                               reserved                                |
  * +-----------------+-----------------+-----------------+-----------------+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * |                               reserved                                |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
+ * |                               reserved                                |
  * +-----------------+-----------------+-----------------+-----------------+
  *
- * id - private guest value, echoed in resp
- * operation - XENSND_OP_CLOSE
- * stream_idx - index of the stream ("streams_idx" XenStore entry
+ * id - uint16_t, private guest value, echoed in response
+ * operation - uint8_t, XENSND_OP_CLOSE
+ * stream_idx - uint8_t, index of the stream ("streams_idx" XenStore entry
  *   of the stream)
  *
  *
@@ -455,21 +449,20 @@
  * +-----------------+-----------------+-----------------+-----------------+
  * |                 id                |    operation    |     stream_idx  |
  * +-----------------+-----------------+-----------------+-----------------+
- * |               offset              |               length              |
+ * |                                offset                                 |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
+ * |                                length                                 |
  * +-----------------+-----------------+-----------------+-----------------+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
- * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
+ * |                               reserved                                |
  * +-----------------+-----------------+-----------------+-----------------+
  *
- * id - private guest value, echoed in resp
- * operation - XENSND_OP_READ/XENSND_OP_WRITE
- * stream_idx - index of the stream ("streams_idx" XenStore entry
+ * id - uint16_t, private guest value, echoed in response
+ * operation - uint8_t, XENSND_OP_READ/XENSND_OP_WRITE
+ * stream_idx - uint8_t, index of the stream ("streams_idx" XenStore entry
  *   of the stream)
- * offset - read or write data offset (gref[0] page being 0)
- * length - read or write data length
+ * offset - uint32_t, read or write data offset within the shared buffer
+ *   passed with XENSND_OP_OPEN request
+ * length - uint32_t, read or write data length
  *
  *
  * Request set/get volume - set/get channels' volume of the stream given:
@@ -477,33 +470,32 @@
  * +-----------------+-----------------+-----------------+-----------------+
  * |                 id                |    operation    |     stream_idx  |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
+ * |                               reserved                                |
  * +-----------------+-----------------+-----------------+-----------------+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
+ * |                               reserved                                |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
+ * |                               reserved                                |
  * +-----------------+-----------------+-----------------+-----------------+
  *
- * id - private guest value, echoed in resp
- * operation - XENSND_OP_SET_VOLUME or XENSND_OP_GET_VOLUME
- * stream_idx - index of the stream ("streams_idx" XenStore entry
+ * id - uint16_t, private guest value, echoed in response
+ * operation - uint8_t, XENSND_OP_SET_VOLUME or XENSND_OP_GET_VOLUME
+ * stream_idx - uint8_t, index of the stream ("streams_idx" XenStore entry
  *   of the stream)
- * gref[0] is used to exchange volume values from the open request.
+ * Buffer passed with XENSND_OP_OPEN is used to exchange volume
+ * values:
  *
- * Shared page for set/get volume data:
  *          0                 1                  2                3        octet
  * +-----------------+-----------------+-----------------+-----------------+
- * |                                vol_ch0                                |
+ * |                               channel[0]                              |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                                vol_ch1                                |
+ * |                               channel[1]                              |
  * +-----------------+-----------------+-----------------+-----------------+
  * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
  * +-----------------+-----------------+-----------------+-----------------+
- * |                                vol_ch127                              |
+ *                  channel[XENSND_OP_OPEN.pcm_channels - 1]               |
  * +-----------------+-----------------+-----------------+-----------------+
  *
- * vol_ch0 - vol_ch127 - volume for the channel from 0 to
- *   XENSND_MAX_CHANNELS_PER_STREAM
+ * channel[i] - sint32_t, volume of i-th channel
  * Volume is expressed as a signed value in steps of 0.001 dBm,
  * while 0 is being 0dBm.
  *
@@ -513,20 +505,34 @@
  * +-----------------+-----------------+-----------------+-----------------+
  * |                 id                |    operation    |     stream_idx  |
  * +-----------------+-----------------+-----------------+-----------------+
- * |      all        |            reserved                                 |
+ * |                               reserved                                |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
+ * |                               reserved                                |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                               reserved                                |
+ * +-----------------+-----------------+-----------------+-----------------+
+ *
+ * id - uint16_t, private guest value, echoed in response
+ * operation - uint8_t, XENSND_OP_MUTE/XENSND_OP_UNMUTE
+ * stream_idx - uint8_t, index of the stream ("streams_idx" XenStore entry
+ *   of the stream)
+ * Buffer passed with XENSND_OP_OPEN is used to exchange mute/unmute
+ * values:
+ *
+ *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |   channel[0]    |   channel[1]    |   channel[2]    |   channel[3]    |
  * +-----------------+-----------------+-----------------+-----------------+
  * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
  * +-----------------+-----------------+-----------------+-----------------+
- * |                              reserved                                 |
+ * |   channel[i]    |   channel[i+1]  |   channel[i+2]  |   channel[i+3]  |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
  * +-----------------+-----------------+-----------------+-----------------+
  *
- * id - private guest value, echoed in resp
- * operation - XENSND_OP_MUTE/XENSND_OP_UNMUTE
- * stream_idx - index of the stream ("streams_idx" XenStore entry
- *   of the stream)
- * all - if not 0, then ignore stream_idx and mute/unmute all
+ * channel[i] - uint8_t, non-zero if i-th channel needs to be muted/unmuted
+ * Number of channels passed is equal to XENSND_OP_OPEN request pcm_channels
+ * field
  *
  *
  * All response packets have the same length (64 bytes)
@@ -540,23 +546,21 @@
  * +-----------------+-----------------+-----------------+-----------------+
  * |                              reserved                                 |
  * +-----------------+-----------------+-----------------+-----------------+
- * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
- * +-----------------+-----------------+-----------------+-----------------+
  * |                              reserved                                 |
  * +-----------------+-----------------+-----------------+-----------------+
  *
- * id - copied from request
- * stream_idx - copied from request
- * operation - XENSND_OP_XXX - copied from request
- * status - signed XENSND_RSP_XXX
+ * id - uint16_t, copied from the request
+ * stream_idx - uint8_t, copied from request
+ * operation - uint8_t, XENSND_OP_XXX - copied from request
+ * status - int8_t, response status (XENSND_RSP_???)
  */
 
 struct xensnd_request {
-    uint8_t raw[64];
+    uint8_t raw[16];
 };
 
 struct xensnd_response {
-    uint8_t raw[64];
+    uint8_t raw[16];
 };
 
 #endif /* __XEN_PUBLIC_IO_XENSND_H__ */
