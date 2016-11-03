@@ -393,9 +393,9 @@
  * +-----------------+-----------------+-----------------+-----------------+
  * |                                pcm_rate                               |
  * +-----------------+-----------------+-----------------+-----------------+
- * |  pcm_format     |  pcm_channels   |             gref_dir_size         |
+ * |  pcm_format     |  pcm_channels   |             reserved              |
  * +-----------------+-----------------+-----------------+-----------------+
- * |                            gref_directory                             |
+ * |                         gref_directory_start                          |
  * +-----------------+-----------------+-----------------+-----------------+
 
  * id - uint16_t, private guest value, echoed in response
@@ -405,14 +405,20 @@
  * pcm_rate - uint32_t, stream data rate, Hz
  * pcm_format - uint8_t, XENSND_PCM_FORMAT_XXX value
  * pcm_channels - uint8_t, number of channels of this stream
- * gref_dir_size - uint16_t, number of gref_directory entries passed
- *   in the shared page referenced by gref_directory
- * gref_directory - grant_ref_t, a reference to a shared page which holds
- *   array of grant entries of the pages used in requests which data
- *   cannot fit in a request/response.
+ * gref_directory_start - grant_ref_t, a reference to the first shared page
+ *   describing shared buffer references. At least one page exists. If shared
+ *   buffer size exceeds what can be addressed by this single page, then
+ *   reference to the next page must be supplied (gref_dir_next_page below
+ *   is not NULL)
  *
- * Shared page for XENSND_OP_OPEN data (gref_directory in the request):
+ * Shared page for XENSND_OP_OPEN buffer descriptor (gref_directory in the
+ *   request) employs a list of pages, describing all pages of the shared data
+ *   buffer:
  *          0                 1                  2                3        octet
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                          gref_dir_next_page                           |
+ * +-----------------+-----------------+-----------------+-----------------+
+ * |                                num_grefs                              |
  * +-----------------+-----------------+-----------------+-----------------+
  * |                                gref[0]                                |
  * +-----------------+-----------------+-----------------+-----------------+
@@ -420,9 +426,12 @@
  * +-----------------+-----------------+-----------------+-----------------+
  * +/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/|
  * +-----------------+-----------------+-----------------+-----------------+
- * |               gref[XC_PAGE_SIZE/sizeof(grant_ref_t) - 1]              |
+ * |                                gref[N -1]                             |
  * +-----------------+-----------------+-----------------+-----------------+
  *
+ * gref_dir_next_page - grant_ref_t, reference to the next page describing
+ *   page directory
+ * num_grefs - number of grefs in this page
  * gref[i] - grant_ref_t, reference to a shared page of the buffer
  *   allocated at XENSND_OP_OPEN
  *

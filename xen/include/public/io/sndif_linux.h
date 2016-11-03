@@ -36,12 +36,18 @@
 #endif
 
 struct xensnd_open_req {
-	uint32_t rate;
-	uint8_t format;
-	uint8_t channels;
+	uint32_t pcm_rate;
+	uint8_t pcm_format;
+	uint8_t pcm_channels;
 	/* in Hz */
-	uint16_t gref_dir_size;
-	grant_ref_t gref_dir;
+	uint16_t __reserved0;
+	grant_ref_t gref_directory_start;
+} __attribute__((packed));
+
+struct xensnd_page_directory {
+	grant_ref_t gref_dir_next_page;
+	uint32_t num_grefs;
+	grant_ref_t gref[0];
 } __attribute__((packed));
 
 struct xensnd_close_req {
