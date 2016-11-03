@@ -136,6 +136,11 @@
  *      List of supported sample formats separated by XENSND_LIST_SEPARATOR.
  *      If not defined then use frontend's default.
  *
+ * buffer-size
+ *      Values:         <string representing a positive integer>
+ *
+ *      The maximum size in octets of the buffer to allocate per stream.
+ *
  * Example configuration:
  *
  * Card configuration used by all streams:
@@ -332,6 +337,8 @@
 #define XENSND_FIELD_CHANNELS_MAX            "channels-max"
 #define XENSND_FIELD_SAMPLE_RATES            "sample-rates"
 #define XENSND_FIELD_SAMPLE_FORMATS          "sample-formats"
+#define XENSND_FIELD_BUFFER_SIZE             "buffer-size"
+
 /* Stream type field values. */
 #define XENSND_STREAM_TYPE_PLAYBACK          "p"
 #define XENSND_STREAM_TYPE_CAPTURE           "c"
